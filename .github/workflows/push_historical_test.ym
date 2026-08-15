@@ -1,0 +1,33 @@
+name: Push Historical to Worker (TEST MODE - MARI, SAZEW, MEBL)
+
+# (TEST MODE) Yeh workflow SIRF manual "Run workflow" button se chalti hai
+# (workflow_dispatch). Koi schedule/cron NAHI hai.
+#
+# Maqsad: sirf 3 companies (MARI, SAZEW, MEBL) ke liye test karna ke
+# GitHub Actions se PSX Historical Data fetch ho kar naye
+# Cloudflare Worker "/pushhistorical" endpoint tak safaltapoorvak POST ho raha hai
+# ya nahi. Yeh moujooda Historical Import Queue, Cloudflare Worker ke baaki
+# kisi function, ya kisi aur feature ko NAHI chhoo raha.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  push-historical-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Run push-historical TEST MODE (MARI, SAZEW, MEBL)
+        env:
+          PUSH_HISTORICAL_SECRET: ${{ secrets.PUSH_HISTORICAL_SECRET }}
+        run: python push_historical_test.py
