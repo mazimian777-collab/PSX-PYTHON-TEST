@@ -15,7 +15,7 @@ poori 100 companies par abhi NAHI chalana. Yeh script:
 IMPORTANT (aap ne yeh 2 cheezein set karni hain, is script mein koi secret
 khud se nahi likha gaya):
   1. Neeche PSX_WORKER_BASE_URL ko apne Cloudflare Worker ke asal URL se
-     replace karein (misaal: "https://psx-bot.username.workers.dev").
+     replace karein PSX_WORKER_BASE_URL = "https://psxai-bot.mazimian777.workers.dev"
      Yeh URL koi secret nahi hai (sirf domain hai), is liye seedha yahan
      likha ja sakta hai.
   2. GitHub repo mein Settings -> Secrets and variables -> Actions -> naya
