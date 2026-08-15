@@ -1,0 +1,109 @@
+"""
+Isolated test script - PSX Historical EOD endpoint ko GitHub Actions runner se test karta hai.
+
+Maqsad: sirf yeh maloom karna ke GitHub Actions ke free runner (jis ka IP/network
+Cloudflare Workers se ALAG hai) se PSX ka yeh endpoint HTTP 200 deta hai ya 520.
+
+Yeh script:
+- Koi KV, koi Cloudflare Worker, koi existing Historical Import Queue code ko CHHOOTA NAHI.
+- Koi API key / password / Telegram token / Gemini key / Cloudflare secret ISTEMAL NAHI karta.
+- Sirf ek symbol (MARI) ke liye, ek dafa, ek standalone GET request karta hai.
+- Result ko sirf print karta hai (console/log output) - kahin save nahi karta, kisi
+  aur system ko notify nahi karta.
+"""
+
+import sys
+import time
+
+try:
+    import requests
+except ImportError:
+    print("FATAL: 'requests' library install nahi hai. Workflow file mein "
+          "'pip install requests' step check karein.")
+    sys.exit(1)
+
+TEST_SYMBOL = "MARI"
+TEST_URL = "https://dps.psx.com.pk/timeseries/eod/" + TEST_SYMBOL
+TIMEOUT_SECONDS = 20
+
+
+def run_test():
+    print("=" * 60)
+    print("PSX Historical Endpoint - Isolated GitHub Actions Test")
+    print("=" * 60)
+    print("Symbol: " + TEST_SYMBOL)
+    print("URL: " + TEST_URL)
+    print("-" * 60)
+
+    start_time = time.time()
+
+    try:
+        # Koi custom header nahi bheji ja rahi - yeh sirf ek plain, seedha
+        # GET request hai, taake test bilkul "neutral" rahe.
+        response = requests.get(TEST_URL, timeout=TIMEOUT_SECONDS)
+    except requests.exceptions.Timeout as err:
+        elapsed = time.time() - start_time
+        print("RESULT: FAIL (Timeout)")
+        print("Elapsed Time: {:.2f}s".format(elapsed))
+        print("Error Type: Timeout")
+        print("Error Message: " + str(err))
+        print("-" * 60)
+        print("GitHub Actions se bhi PSX Historical Endpoint tak jawab nahi mila (timeout).")
+        return
+    except requests.exceptions.RequestException as err:
+        elapsed = time.time() - start_time
+        print("RESULT: FAIL (Connection/Request Error)")
+        print("Elapsed Time: {:.2f}s".format(elapsed))
+        print("Error Type: " + type(err).__name__)
+        print("Error Message: " + str(err))
+        print("-" * 60)
+        print("GitHub Actions se bhi PSX Historical Endpoint tak reliable access nahi ho saka.")
+        return
+
+    elapsed = time.time() - start_time
+
+    print("HTTP Status: " + str(response.status_code))
+    print("Response Time: {:.3f}s".format(elapsed))
+    print("Final URL (redirect ke baad, agar hua ho): " + response.url)
+    print("Content-Type: " + str(response.headers.get("Content-Type", "(moujood nahi)")))
+    print("-" * 60)
+
+    body_text = response.text or ""
+    print("Response Body - pehle 500 characters:")
+    print(body_text[:500])
+    print("-" * 60)
+
+    if response.status_code == 200:
+        try:
+            data = response.json()
+            rows = None
+            if isinstance(data, dict) and isinstance(data.get("data"), list):
+                rows = data["data"]
+            elif isinstance(data, list):
+                rows = data
+
+            if rows and len(rows) > 0:
+                print("JSON Parse: OK")
+                print("Historical rows mile: " + str(len(rows)))
+                print("Pehli row (sample): " + str(rows[0]))
+                print("=" * 60)
+                print("GitHub Actions se PSX Historical Data kaamyabi se mil gaya.")
+            else:
+                print("JSON Parse: Ho gaya, magar 'data' array khali ya format mukhtalif hai.")
+                print("=" * 60)
+                print("GitHub Actions se 200 OK mila, magar historical data confirm nahi ho saka - raw body upar dekhein.")
+        except ValueError as err:
+            print("JSON Parse: FAIL - response valid JSON nahi hai.")
+            print("Parse Error: " + str(err))
+            print("=" * 60)
+            print("GitHub Actions se 200 OK mila, magar response JSON format mein nahi tha.")
+    elif response.status_code == 520:
+        print("=" * 60)
+        print("GitHub Actions se bhi PSX Historical Endpoint 520 de raha hai.")
+    else:
+        print("=" * 60)
+        print("GitHub Actions se PSX Historical Endpoint ne HTTP " + str(response.status_code) + " diya (na 200, na 520).")
+
+
+if __name__ == "__main__":
+    run_test()
