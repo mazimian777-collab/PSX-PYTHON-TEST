@@ -1,27 +1,35 @@
 """
-TEST MODE - PSX Historical Data ko GitHub Actions se fetch kar ke
-Cloudflare Worker ke naye /pushhistorical endpoint par POST karta hai.
+FULL ROLLOUT - PSX Historical Data ko GitHub Actions se fetch kar ke
+Cloudflare Worker ke /pushhistorical endpoint par POST karta hai.
 
-Maqsad: sirf 3 companies (MARI, SAZEW, MEBL) par yeh naya bridge test karna -
-poori 100 companies par abhi NAHI chalana. Yeh script:
+(Update) Pehle yeh sirf 3 companies (MARI, SAZEW, MEBL) tak TEST MODE mein
+mehdood tha. Test kaamyab hone ke baad, ab yeh poori WATCHLIST (100 companies,
+psx-bot-worker.js ke andar wali WATCHLIST se hoobahoo li gayi hai) ke liye
+chalta hai. Yeh script:
 
 - Sirf GitHub Actions ke apne "workflow_dispatch" (manual button) se chalti hai.
+  Koi schedule/cron abhi shamil NAHI kiya gaya - jab tak aap khud manually
+  "Run workflow" na dabayein, yeh khud ba khud kabhi nahi chalegi.
 - Existing Historical Import Queue, Cloudflare Worker ke baaki kisi bhi
   function/feature ko CHHOOTI NAHI - sirf naye /pushhistorical endpoint ko
-  ek normal HTTP client ki tarah call karti hai.
+  ek normal HTTP client ki tarah, ek ek company ke liye, wafqe (delay) ke
+  sath call karti hai (taake PSX par ek dum bohot saari requests na jayein).
 - Shared secret kabhi print/log NAHI karti - sirf ek GitHub Actions Secret
   (environment variable) se padhti hai.
+- Har company independent hai: agar koi ek fail ho (jaise PSX temporarily
+  block kar de), to baaki companies par koi asar nahi parta - script chalti
+  rehti hai aur aakhir mein saaf report deti hai ke kitni kaamyab hui,
+  kitni nakaam.
 
 IMPORTANT (aap ne yeh 2 cheezein set karni hain, is script mein koi secret
 khud se nahi likha gaya):
   1. Neeche PSX_WORKER_BASE_URL ko apne Cloudflare Worker ke asal URL se
-     replace karein PSX_WORKER_BASE_URL = "https://psxai-bot.mazimian777.workers.dev"
-     Yeh URL koi secret nahi hai (sirf domain hai), is liye seedha yahan
-     likha ja sakta hai.
-  2. GitHub repo mein Settings -> Secrets and variables -> Actions -> naya
-     secret bana kar naam "PUSH_HISTORICAL_SECRET" rakhein aur value woh
-     rakhein jo aap Cloudflare Worker Secret "PUSH_HISTORICAL_SECRET" mein
-     bhi set karenge (dono taraf EXACT same value honi chahiye).
+     replace karein. Yeh URL koi secret nahi hai (sirf domain hai), is liye
+     seedha yahan likha ja sakta hai.
+  2. GitHub repo mein Settings -> Secrets and variables -> Actions mein
+     "PUSH_HISTORICAL_SECRET" naam ka secret bana kar wahi value rakhein jo
+     Cloudflare Worker Secret "PUSH_HISTORICAL_SECRET" mein bhi set hai
+     (dono taraf EXACT same value honi chahiye).
 """
 
 import os
@@ -38,9 +46,22 @@ except ImportError:
 # ---- Step 1: Yahan apna asal Cloudflare Worker URL likhein (secret nahi hai) ----
 PSX_WORKER_BASE_URL = "https://psxai-bot.mazimian777.workers.dev"
 
-TEST_SYMBOLS = ["MARI", "SAZEW", "MEBL"]
+# ---- Poori WATCHLIST (100 companies) - psx-bot-worker.js ke WATCHLIST array se ----
+ALL_SYMBOLS = [
+    "ABL", "ABOT", "AGP", "AHCL", "AICL", "AIRLINK", "AKBL", "APL", "ATLH", "ATRL",
+    "BAFL", "BAHL", "BNWM", "BOP", "BWCL", "CHCC", "CNERGY", "COLG", "CPHL", "DCR",
+    "DGKC", "EFERT", "ENGROH", "FABL", "FATIMA", "FCCL", "FFC", "FFL", "FHAM", "GADT",
+    "GAL", "GHGL", "GHNI", "GLAXO", "HALEON", "HBL", "HCAR", "HGFA", "HINOON", "HMB",
+    "HUBC", "HUMNL", "IBFL", "ILP", "INDU", "INIL", "ISL", "JDWS", "JVDC", "KAPCO",
+    "KEL", "KOHC", "KTML", "LCI", "LOTCHEM", "LUCK", "MARI", "MCB", "MEBL", "MEHT",
+    "MLCF", "MTL", "MUREB", "NATF", "NBP", "NESTLE", "NML", "NPL", "OGDC", "PABC",
+    "PAEL", "PAKT", "PGLC", "PIBTL", "PIOC", "PKGS", "POL", "POWER", "PPL", "PSEL",
+    "PSO", "PSX", "PTC", "RMPL", "SAZEW", "SCBPL", "SEARL", "SHFA", "SNGP", "SRVI",
+    "SSGC", "SSOM", "SYS", "TGL", "THALL", "TPLRF1", "TRG", "UBL", "UPFL", "YOUW",
+]
+
 TIMEOUT_SECONDS = 20
-DELAY_BETWEEN_SYMBOLS_SECONDS = 5
+DELAY_BETWEEN_SYMBOLS_SECONDS = 8  # PSX par wafqa rakhne ke liye (100 companies, is liye thora zyada rakha)
 
 
 def fetch_psx_history(symbol):
@@ -63,9 +84,9 @@ def push_to_worker(symbol, rows, secret):
     return response
 
 
-def run_test_for_symbol(symbol, secret):
+def run_test_for_symbol(symbol, secret, index, total):
     print("=" * 60)
-    print("PSX -> /pushhistorical TEST MODE")
+    print("[" + str(index) + "/" + str(total) + "] PSX -> /pushhistorical")
     print("Symbol: " + symbol)
     print("-" * 60)
 
@@ -142,20 +163,32 @@ def run_test():
               "wali line mein apna asal Cloudflare Worker URL likhein.")
         sys.exit(1)
 
+    total = len(ALL_SYMBOLS)
     results = {}
-    for i, symbol in enumerate(TEST_SYMBOLS):
+    for i, symbol in enumerate(ALL_SYMBOLS):
         if i > 0:
             print("\n")
             time.sleep(DELAY_BETWEEN_SYMBOLS_SECONDS)
-        results[symbol] = run_test_for_symbol(symbol, secret)
+        results[symbol] = run_test_for_symbol(symbol, secret, i + 1, total)
+
+    success_symbols = [s for s, ok in results.items() if ok]
+    failed_symbols = [s for s, ok in results.items() if not ok]
 
     print("\n" + "=" * 60)
     print("FINAL SUMMARY:")
-    for symbol, ok in results.items():
-        print(symbol + ": " + ("KAAMYAB" if ok else "NAKAAM"))
+    print("Total: " + str(total) + " | Kaamyab: " + str(len(success_symbols)) + " | Nakaam: " + str(len(failed_symbols)))
+    if failed_symbols:
+        print("\nYeh companies nakaam hui (baad mein dobara try ki ja sakti hain):")
+        print(", ".join(failed_symbols))
     print("=" * 60)
 
-    if not all(results.values()):
+    # (Design choice) Agar kam az kam kuch companies kaamyab hui hain, to poori
+    # run ko "Failure" mark nahi karte - kyunke 100 companies mein se kuch ka
+    # PSX se temporarily fail hona normal hai (bilkul jaisa existing Import
+    # Queue mein bhi hota hai). Sirf tab "Failure" dikhate hain jab BILKUL
+    # koi bhi company kaamyab na ho - yeh nishaani hai ke koi bunyadi masla
+    # hai (jaise secret galat, ya Worker down).
+    if len(success_symbols) == 0:
         sys.exit(1)
 
 
