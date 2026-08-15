@@ -36,7 +36,7 @@ except ImportError:
     sys.exit(1)
 
 # ---- Step 1: Yahan apna asal Cloudflare Worker URL likhein (secret nahi hai) ----
-PSX_WORKER_BASE_URL = "https://REPLACE-WITH-YOUR-WORKER-URL.workers.dev"
+PSX_WORKER_BASE_URL = "https://psxai-bot.mazimian777.workers.dev"
 
 TEST_SYMBOLS = ["MARI", "SAZEW", "MEBL"]
 TIMEOUT_SECONDS = 20
